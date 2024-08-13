@@ -1,9 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../managers/location_manager.dart';
-import 'package:location/location.dart' as location_package;
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -16,73 +14,42 @@ class _MapScreenState extends State<MapScreen> {
   final LocationManager _locationManager = LocationManager();
   final List<LatLng> _pathPoints = [];
   final MapController _mapController = MapController();
-  bool _mapCentered = false; // Flag to indicate if the map has been centered
-  bool _isGpsEnabled = false; // Tracks the current GPS status
-  Timer? _gpsStatusCheckTimer;
+  bool _mapCentered = false; // Flag to check if the map has been centered
 
   @override
   void initState() {
     super.initState();
     _initializeLocationTracking();
-    _startGpsStatusCheckTimer();
   }
 
   Future<void> _initializeLocationTracking() async {
-    await _checkAndRequestPermissions();
-
-    if (_isGpsEnabled && _locationManager.permissionGranted) {
-      _locationManager.startTracking(_onLocationUpdate);
-    }
-  }
-
-  Future<void> _checkAndRequestPermissions() async {
-    _isGpsEnabled = await _locationManager.isGpsEnabled();
+    // Check and request GPS and permission status
     _locationManager.permissionGranted =
         await _locationManager.isPermissionGranted();
 
-    if (!_isGpsEnabled) {
-      await _locationManager.requestEnableGps();
-      _isGpsEnabled = await _locationManager.isGpsEnabled();
-    }
+    await _locationManager.requestEnableGps();
+    await _locationManager.isGpsEnabled();
 
-    if (!_locationManager.permissionGranted) {
-      await _locationManager.requestPermission();
-      _locationManager.permissionGranted =
-          await _locationManager.isPermissionGranted();
-    }
+    await _locationManager.requestPermission();
 
-    setState(() {}); // Update UI based on GPS and permission status
-  }
+    // Update UI based on GPS and permission status
+    setState(() {});
 
-  void _onLocationUpdate(location_package.LocationData locationData) {
-    final newPoint = LatLng(
-      locationData.latitude ?? 0.0,
-      locationData.longitude ?? 0.0,
-    );
+    // Start tracking if both GPS and permission are granted
 
-    setState(() {
-      _pathPoints.insert(0, newPoint);
-    });
+    _locationManager.startTracking((locationData) {
+      final newPoint =
+          LatLng(locationData.latitude ?? 0.0, locationData.longitude ?? 0.0);
 
-    if (!_mapCentered) {
-      _centerMapOnLocation(newPoint);
-      _mapCentered = true;
-    }
-  }
+      setState(() {
+        _pathPoints.insert(0, newPoint);
+      });
 
-  void _centerMapOnLocation(LatLng location) {
-    _mapController.move(
-        location, 18.0); // Center the map and set a comfortable zoom level
-  }
-
-  void _startGpsStatusCheckTimer() {
-    _gpsStatusCheckTimer =
-        Timer.periodic(const Duration(seconds: 2), (timer) async {
-      bool gpsEnabled = await _locationManager.isGpsEnabled();
-      if (gpsEnabled != _isGpsEnabled) {
-        setState(() {
-          _isGpsEnabled = gpsEnabled;
-        });
+      // Center the map on the first location update
+      if (!_mapCentered) {
+        _mapController.move(
+            newPoint, 18.0); // Center and zoom to a comfortable level
+        _mapCentered = true; // Prevent further automatic centering
       }
     });
   }
@@ -90,7 +57,6 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _locationManager.stopTracking();
-    _gpsStatusCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -100,15 +66,14 @@ class _MapScreenState extends State<MapScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Text('Updates:'),
-            Text(_pathPoints.length.toString()),
-            const Spacer(),
             const Text('GPS:'),
             Icon(
-              _isGpsEnabled && _locationManager.trackingEnabled
+              _locationManager.trackingEnabled
                   ? Icons.gps_fixed
                   : Icons.gps_off,
             ),
+            Text(_pathPoints.length.toString()),
+            const Spacer(),
           ],
         ),
       ),
