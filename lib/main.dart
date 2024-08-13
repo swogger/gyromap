@@ -15,7 +15,6 @@ class MyApp extends StatelessWidget {
       title: 'Gyromap',
       theme: ThemeData.light(), // Define the light theme
       darkTheme: ThemeData.dark(), // Define the dark theme
-      themeMode: ThemeMode.dark, // Force dark mode
       home: MapScreen(),
     );
   }

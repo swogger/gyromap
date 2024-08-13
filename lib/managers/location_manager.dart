@@ -35,4 +35,17 @@ class LocationManager {
       locations.clear();
     }
   }
+
+  Future<bool> isGpsEnabled() async {
+    return await _location.serviceEnabled();
+  }
+
+  Future<bool> isPermissionGranted() async {
+    return await _location.hasPermission() == l.PermissionStatus.granted;
+  }
+
+  Future<void> requestPermission() async {
+    permissionGranted =
+        await _location.requestPermission() == l.PermissionStatus.granted;
+  }
 }
