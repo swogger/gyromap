@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../location_manager.dart';
+import '../managers/location_manager.dart';
+import '../managers/accelerometer_manager.dart';
+import '../utils/permission_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -10,31 +12,47 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final LocationManager _locationManager = LocationManager();
+  final AccelerometerManager _accelerometerManager = AccelerometerManager();
 
   @override
   void initState() {
     super.initState();
-    _locationManager.checkStatus((gpsEnabled, permissionGranted) {
-      setState(() {
-        _locationManager.gpsEnabled = gpsEnabled;
-        _locationManager.permissionGranted = permissionGranted;
-      });
-    });
+    _initializeLocation();
+    _initializeAccelerometer();
   }
 
   @override
   void dispose() {
-    _locationManager.stopTracking(() {
+    _locationManager.stopTracking();
+    _accelerometerManager.stopTracking();
+    super.dispose();
+  }
+
+  void _initializeLocation() async {
+    _locationManager.gpsEnabled = await PermissionUtils.isGpsEnabled();
+    _locationManager.permissionGranted =
+        await PermissionUtils.isLocationPermissionGranted();
+
+    setState(() {});
+
+    if (_locationManager.gpsEnabled && _locationManager.permissionGranted) {
+      _locationManager.startTracking((locationData) {
+        setState(() {});
+      });
+    }
+  }
+
+  void _initializeAccelerometer() {
+    _accelerometerManager.startTracking((event) {
       setState(() {});
     });
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Location App'),
+        title: const Text('Location & Accelerometer App'),
         centerTitle: true,
       ),
       body: Padding(
@@ -43,65 +61,71 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.max,
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            buildListTile(
+            UIUtils.buildListTile(
               "GPS",
               _locationManager.gpsEnabled
                   ? const Text("Okey")
                   : ElevatedButton(
-                      onPressed: () =>
-                          _locationManager.requestEnableGps((gpsEnabled) {
-                        setState(() {
-                          _locationManager.gpsEnabled = gpsEnabled;
-                        });
-                      }),
-                      child: const Text("Enable Gps"),
-                    ),
+                      onPressed: _locationManager.requestEnableGps,
+                      child: const Text("Enable GPS")),
             ),
-            buildListTile(
+            UIUtils.buildListTile(
               "Permission",
               _locationManager.permissionGranted
                   ? const Text("Okey")
                   : ElevatedButton(
-                      onPressed: () => _locationManager
-                          .requestLocationPermission((permissionGranted) {
-                        setState(() {
-                          _locationManager.permissionGranted =
-                              permissionGranted;
-                        });
-                      }),
-                      child: const Text("Request Permission"),
-                    ),
+                      onPressed: () async {
+                        _locationManager.permissionGranted =
+                            await PermissionUtils.requestLocationPermission();
+                        setState(() {});
+                      },
+                      child: const Text("Request Permission")),
             ),
-            buildListTile(
+            UIUtils.buildListTile(
               "Location",
               _locationManager.trackingEnabled
                   ? ElevatedButton(
-                      onPressed: () => _locationManager.stopTracking(() {
-                        setState(() {});
-                      }),
-                      child: const Text("Stop"),
-                    )
+                      onPressed: _locationManager.stopTracking,
+                      child: const Text("Stop"))
                   : ElevatedButton(
                       onPressed: _locationManager.gpsEnabled &&
                               _locationManager.permissionGranted
                           ? () {
                               _locationManager.startTracking((locationData) {
-                                setState(() {
-                                  _locationManager.addLocation(locationData);
-                                });
+                                setState(() {});
                               });
                             }
                           : null,
-                      child: const Text("Start"),
-                    ),
+                      child: const Text("Start")),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Accelerometer Data:',
+              style: TextStyle(fontSize: 20),
+            ),
+            const SizedBox(height: 10),
+            if (_accelerometerManager.accelerometerValues.isNotEmpty)
+              Text(
+                'X: ${_accelerometerManager.accelerometerValues[0].x.toStringAsFixed(2)}, '
+                'Y: ${_accelerometerManager.accelerometerValues[0].y.toStringAsFixed(2)}, '
+                'Z: ${_accelerometerManager.accelerometerValues[0].z.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 16),
+              )
+            else
+              const Text('No data available', style: TextStyle(fontSize: 16)),
+            const SizedBox(height: 20),
+            const Text(
+              'Location Data:',
+              style: TextStyle(fontSize: 20),
             ),
             Expanded(
               child: ListView.builder(
                 itemCount: _locationManager.locations.length,
                 itemBuilder: (context, index) {
+                  final location = _locationManager.locations[index];
                   return ListTile(
                     title: Text(
-                        "${_locationManager.locations[index].latitude} ${_locationManager.locations[index].longitude}"),
+                        "Lat: ${location.latitude}, Lng: ${location.longitude}"),
                   );
                 },
               ),
@@ -113,10 +137,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-ListTile buildListTile(String title, Widget? trailing) {
-  return ListTile(
-    dense: true,
-    title: Text(title),
-    trailing: trailing,
-  );
+class UIUtils {
+  static ListTile buildListTile(String title, Widget? trailing) {
+    return ListTile(
+      dense: true,
+      title: Text(title),
+      trailing: trailing,
+    );
+  }
 }
